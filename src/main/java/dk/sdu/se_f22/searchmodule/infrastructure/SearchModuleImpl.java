@@ -1,55 +1,84 @@
 package dk.sdu.se_f22.searchmodule.infrastructure;
 
 import dk.sdu.se_f22.productmodule.management.BaseProduct;
+import dk.sdu.se_f22.searchmodule.infrastructure.interfaces.Filterable;
 import dk.sdu.se_f22.searchmodule.infrastructure.interfaces.IndexingModule;
 import dk.sdu.se_f22.searchmodule.infrastructure.interfaces.SearchModule;
-import dk.sdu.se_f22.sharedlibrary.models.*;
 import dk.sdu.se_f22.sharedlibrary.SearchHits;
+import dk.sdu.se_f22.sharedlibrary.db.LoggingProvider;
+import dk.sdu.se_f22.sharedlibrary.models.Brand;
+import dk.sdu.se_f22.sharedlibrary.models.Product;
+import org.apache.logging.log4j.Logger;
 
-import java.lang.reflect.Type;
+import java.lang.reflect.ParameterizedType;
 import java.util.*;
-import java.util.function.BiFunction;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 
 public class SearchModuleImpl implements SearchModule {
-    private final Set<IndexingModule<?>> indexingModules;
+    private static final Logger logger = LoggingProvider.getLogger(SearchModuleImpl.class);
+    private final Set<Filterable> filteringModules;
+    private final Map<Class<?>, IndexingModule<?>> indexingModules;
+    private DelimiterSettings delimiterSettings = new DelimiterSettings();
 
     public SearchModuleImpl() {
-        this.indexingModules = new HashSet<>();
+        this.indexingModules = new HashMap<>();
+        this.filteringModules = new HashSet<>();
+        delimiterSettings.addDelimiter(" ");
     }
 
     public <T extends IndexingModule<?>> void addIndexingModule(T index) {
-        indexingModules.add(index);
+        // Get parameterized type i.e. the thing between the angle brackets
+        // Example, here the found class would be Foo:
+        //      class SomeIndexingModule implements IndexingModule<Foo>
+        Class<?> indexDataType = Arrays.stream(index.getClass().getGenericInterfaces())
+                .map(ParameterizedType.class::cast)
+                .map(ParameterizedType::getActualTypeArguments)
+                .map(Arrays::asList)
+                .flatMap(List::stream)
+                .map(Class.class::cast)
+                .findFirst()
+                .orElseThrow();
+
+        indexingModules.put(indexDataType, index);
     }
 
-    public <T extends IndexingModule<?>> void removeIndexingModule(T index) {
-        indexingModules.remove(index);
+    public void removeIndexingModule(Class<?> clazz) {
+        indexingModules.remove(clazz);
+    }
+
+    public void addFilteringModule(Filterable filteringModule) {
+        filteringModules.add(filteringModule);
+    }
+
+    public void removeFilteringModule(Filterable filteringModule) {
+        filteringModules.remove(filteringModule);
+    }
+
+    public List<String> filterTokens(List<String> tokens){
+        for(Filterable module : filteringModules) {
+            tokens = module.filter((ArrayList<String>) tokens);
+        }
+        return tokens;
     }
 
     @SuppressWarnings("unchecked")
     public <T> List<T> queryIndexOfType(Class<T> clazz, List<String> tokens) {
-        BiFunction<Type, String, Boolean> interfaceGenericEquals = (Type genericInterface, String target) -> {
-            Pattern pattern = Pattern.compile("<([^>]+)>");
-            Matcher matcher = pattern.matcher(genericInterface.getTypeName());
-            return matcher.find() && Objects.equals(matcher.group(1), target);
-        };
+        var module = indexingModules.get(clazz);
 
-        for (var index : indexingModules) {
-            for (Type genericInterface : index.getClass().getGenericInterfaces()) {
-                if (interfaceGenericEquals.apply(genericInterface, clazz.getTypeName())) {
-                    return (List<T>) index.queryIndex(tokens);
-                }
-            }
+        if(module == null) {
+            logger.warn("Could not find indexing module: " + clazz.getName());
+            return new ArrayList<>();
         }
 
-        throw new NoSuchElementException();
+        return (List<T>) module.queryIndex(tokens);
     }
 
     @Override
     public SearchHits search(String query) {
-        List<String> tokens = List.of();
+        IllegalChars replaceForbiddenChars = new IllegalChars();
+        String cleanedQuery = replaceForbiddenChars.removeForbiddenChars(query);
+        List<String> tokens = new Tokenizer().tokenize(cleanedQuery);
+        tokens = filterTokens(tokens);
 
         SearchHits searchHits = new SearchHits();
         searchHits.setContents(List.of());
@@ -57,6 +86,24 @@ public class SearchModuleImpl implements SearchModule {
         searchHits.setBrands(queryIndexOfType(Brand.class, tokens));
         //searchHits.setContents(queryIndexOfType(Content.class, tokens));
 
+        SearchLogger.logSearch(query, searchHits, tokens);
+
         return searchHits;
     }
+
+    @Override
+    public List<String> getDelimiters() {
+        return delimiterSettings.getDelimiters();
+    }
+
+    @Override
+    public void addDelimiter(String delimiter) {
+        delimiterSettings.addDelimiter(delimiter);
+    }
+
+    @Override
+    public boolean removeDelimiter(String delim) {
+        return delimiterSettings.removeDelimiter(delim);
+    }
+
 }

@@ -14,6 +14,7 @@ open module dk.sdu.se_f22 {
     requires org.postgresql.jdbc;
     requires net.synedra.validatorfx;
     requires com.google.gson;
+    requires org.apache.commons.pool2;
     requires org.jetbrains.annotations;
     exports dk.sdu.se_f22;
 }
