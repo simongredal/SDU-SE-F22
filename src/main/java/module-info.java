@@ -12,7 +12,7 @@ open module dk.sdu.se_f22 {
     requires org.apache.logging.log4j;
     requires org.controlsfx.controls;
     requires org.postgresql.jdbc;
-    requires validatorfx;
+    requires net.synedra.validatorfx;
     requires com.google.gson;
     requires org.jetbrains.annotations;
     exports dk.sdu.se_f22;
