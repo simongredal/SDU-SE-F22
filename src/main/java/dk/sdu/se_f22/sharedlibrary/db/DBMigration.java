@@ -19,7 +19,7 @@ import dk.sdu.se_f22.sharedlibrary.utils.NaturalOrderComparator;
 
 /**
  * Migrate database to the newest version
- * 
+ *
  * @author Mikkel Albrechtsen (The0mikkel)
  */
 public class DBMigration {
@@ -28,7 +28,8 @@ public class DBMigration {
 
     public static void main(String[] args) {
         DBMigration migrator = new DBMigration();
-        migrator.migrate();
+//        migrator.migrate();
+        migrator.migrateFresh();
     }
 
     /**
@@ -55,7 +56,7 @@ public class DBMigration {
         String migrationsPath = "src/main/resources/dk/sdu/se_f22/sharedlibrary/db/migrations/";
 
         // Run default SeedDatabase
-        
+
 
         try (
             Connection connection = DBConnection.getPooledConnection();
@@ -140,11 +141,11 @@ public class DBMigration {
 
     /**
      * Run SQL from a .sql file
-     * 
+     *
      * @param connection Database connection
      * @param SQLFileName The name of the file to execute sql from
      * @return True on success, false on error - See console for more details about the error.
-     * 
+     *
      * @author v-nemeth
      * @author Mikkel Albrechtsen (The0mikkel)
      */
@@ -184,7 +185,7 @@ public class DBMigration {
             } else if (error instanceof SQLException) {
                 this.println("There was an error with the sql in the file: "+SQLFileName, Color.RED_BOLD);
             }
-            
+
             // Rollback any sql actions that may have been
             try {
                 connection.rollback();
@@ -195,7 +196,7 @@ public class DBMigration {
 
             return false;
         }
-        
+
         try {
             connection.setAutoCommit(true);
         } catch (SQLException error) {
@@ -249,7 +250,7 @@ public class DBMigration {
      * @return boolean - True if file is valid
      */
     private boolean validateFile(String filename) {
-        String lowercaseFileName = filename.toLowerCase(); 
+        String lowercaseFileName = filename.toLowerCase();
         if (!lowercaseFileName.endsWith(".sql")) {
             return false;
         }
@@ -258,7 +259,7 @@ public class DBMigration {
 
     /**
      * Print text to console
-     * 
+     *
      * @param text
      */
     private void println(String text) {
@@ -268,7 +269,7 @@ public class DBMigration {
     /**
      * Print stacktrace to console.
      * This will always print to console.
-     * 
+     *
      * @param stackTrace as StackTraceElement array
      */
     private void println(Throwable error, StackTraceElement[] stackTrace) {
@@ -283,7 +284,7 @@ public class DBMigration {
 
     /**
      * Print text to command-line with color. This will only print, if printing is set for object
-     * 
+     *
      * @param text String to print
      * @param color as enum from Color
      */
